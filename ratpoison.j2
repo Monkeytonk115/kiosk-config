@@ -1,0 +1,7 @@
+startup_message off
+
+addhook deletewindow restart
+
+exec xset s off
+exec xset -dpms
+exec chromium --noerrdialogs --incognito --kiosk "{{kiosk_uri}}"

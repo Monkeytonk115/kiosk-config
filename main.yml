@@ -1,0 +1,88 @@
+---
+- name: Setup kiosk
+  hosts: all
+
+  vars:
+    kiosk_username: user
+    kiosk_uri: https://example.com/
+
+
+  handlers:
+  - name: update grub
+    become: true
+    ansible.builtin.command: update-grub
+
+
+  tasks:
+  - name: Update apt cache
+    become: true
+    ansible.builtin.apt:
+      update_cache: yes
+      cache_valid_time: 84000
+
+  - name: Update software
+    become: true
+    ansible.builtin.apt:
+        upgrade: safe
+    
+  - name: Install programs
+    become: true
+    ansible.builtin.apt:
+      name:
+        - chromium
+        - ratpoison
+        - xorg
+      state: latest
+
+  - name: configure dhclient
+    become: true
+    ansible.builtin.lineinfile:
+      path: /etc/dhcp/dhclient.conf
+      regexp: '^send dhcp-client-identifier'
+      line: 'send dhcp-client-identifier = hardware'
+      state: present
+
+  - name: configure grub
+    become: true
+    ansible.builtin.lineinfile:
+      path: /etc/default/grub
+      regexp: '^GRUB_TIMEOUT'
+      line: 'GRUB_TIMEOUT=0'
+      state: present
+    notify: update grub
+
+  - name: Disable getty on tty1
+    become: true
+    ansible.builtin.service:
+      name: getty@tty1.service
+      enabled: false
+
+  - name: Copy config for autologin on tty1
+    become: true
+    ansible.builtin.template:
+      src: ./autologin.j2
+      dest: /etc/systemd/system/autologin@.service
+      mode: 0644
+      owner: root
+      group: root
+
+  - name: Enable autologin on tty
+    become: true
+    ansible.builtin.service:
+      name: autologin@tty1.service
+      enabled: true
+
+  - name: copy config for starting x on login tty1
+    ansible.builtin.copy:
+      src: ./bash_profile.txt
+      dest: "/home/{{kiosk_username}}/.bash_profile"
+
+  - name: copy ratpoison config
+    ansible.builtin.template:
+      src: ./ratpoison.j2
+      dest: "/home/{{kiosk_username}}/.ratpoisonrc"
+
+  - name: copy xorg config
+    ansible.builtin.copy:
+      src: ./xinit.txt
+      dest: "/home/{{kiosk_username}}/.xinit"
